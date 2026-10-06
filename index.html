@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escáner de Asistencia</title>
+    <!-- Librería gratuita para leer QR con la cámara -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 20px; }
+        #reader { width: 100%; max-width: 400px; margin: auto; background: white; border-radius: 10px; padding: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #resultado { margin-top: 20px; font-size: 20px; font-weight: bold; padding: 15px; border-radius: 8px; display: inline-block; }
+        .success { background: #d4edda; color: #155724; }
+        .warning { background: #fff3cd; color: #856404; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h2>Control de Acceso - Evento</h2>
+    <p>Apunta con la cámara al código QR del asistente</p>
+    
+    <div id="reader"></div>
+    <div id="resultado">Esperando escaneo...</div>
+
+    <script>
+        // PEGA AQUÍ LA URL DE TU WEB APP DE APPS SCRIPT CUANDO LA PUBLIQUES EN EL PASO 3
+        const URL_BACKEND = "https://script.google.com/macros/s/AKfycbzaiqn8ilkQn77w8_Y3A5QdB4cd5Dj0prnQCTPGbQbSqbCDVRqCfmUvc2tpwl7I3hiV/exec";
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Detenemos temporalmente el escaneo para procesar
+            html5QrCode.pause();
+            
+            document.getElementById("resultado").className = "";
+            document.getElementById("resultado").innerText = "Procesando...";
+
+            fetch(URL_BACKEND, {
+                method: "POST",
+                body: JSON.stringify({ email: decodedText }),
+                headers: { "Content-Type": "text/plain;charset=utf-8" }
+            })
+            .response => response.json()
+            .then(data => {
+                let resDiv = document.getElementById("resultado");
+                resDiv.innerText = data.message;
+                if (data.status === "success") resDiv.className = "success";
+                else if (data.status === "warning") resDiv.className = "warning";
+                else resDiv.className = "error";
+
+                // Reanudar el escaneo después de 3 segundos
+                setTimeout(() => {
+                    resDiv.innerText = "Esperando siguiente QR...";
+                    resDiv.className = "";
+                    html5QrCode.resume();
+                }, 3000);
+            })
+            .catch(err => {
+                document.getElementById("resultado").innerText = "❌ Error de conexión";
+                document.getElementById("resultado").className = "error";
+                setTimeout(() => html5QrCode.resume(), 3000);
+            });
+        }
+
+        const html5QrCode = new Html5Qrcodes("reader");
+        html5QrCode.start(
+            { facingMode: "environment" }, // Usa la cámara trasera por defecto
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+        ).catch(err => {
+            alert("No se pudo iniciar la cámara. Asegúrate de dar permisos o usar HTTPS.");
+        });
+    </script>
+</body>
+</html>

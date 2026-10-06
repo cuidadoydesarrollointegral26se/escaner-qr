@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Escáner de Asistencia</title>
-    <!-- Librería gratuita para leer QR con la cámara -->
+    <!-- Librería oficial corregida -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 20px; }
@@ -13,40 +13,55 @@
         .success { background: #d4edda; color: #155724; }
         .warning { background: #fff3cd; color: #856404; }
         .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
     <h2>Control de Acceso - Evento</h2>
-    <p>Apunta con la cámara al código QR del asistente</p>
+    <p>Presiona el botón para activar la cámara</p>
     
+    <button onclick="iniciarCamara()">Iniciar Escáner</button>
+    <br><br>
     <div id="reader"></div>
     <div id="resultado">Esperando escaneo...</div>
 
     <script>
-        // PEGA AQUÍ LA URL DE TU WEB APP DE APPS SCRIPT CUANDO LA PUBLIQUES EN EL PASO 3
+        // PEGA AQUÍ LA URL DE TU WEB APP DE APPS SCRIPT
         const URL_BACKEND = "https://script.google.com/macros/s/AKfycbzaiqn8ilkQn77w8_Y3A5QdB4cd5Dj0prnQCTPGbQbSqbCDVRqCfmUvc2tpwl7I3hiV/exec";
 
+        let html5QrCode;
+
+        function iniciarCamara() {
+            html5QrCode = new Html5Qrcode("reader");
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, // Usa la cámara trasera
+                { fps: 10, qrbox: 250 },
+                onScanSuccess
+            ).catch(err => {
+                alert("Error al iniciar la cámara. Asegúrate de dar permisos o usar un enlace HTTPS (GitHub Pages). Detalle: " + err);
+            });
+        }
+
         function onScanSuccess(decodedText, decodedResult) {
-            // Detenemos temporalmente el escaneo para procesar
             html5QrCode.pause();
             
-            document.getElementById("resultado").className = "";
-            document.getElementById("resultado").innerText = "Procesando...";
+            let resDiv = document.getElementById("resultado");
+            resDiv.className = "";
+            resDiv.innerText = "Procesando...";
 
             fetch(URL_BACKEND, {
                 method: "POST",
                 body: JSON.stringify({ email: decodedText }),
                 headers: { "Content-Type": "text/plain;charset=utf-8" }
             })
-            .response => response.json()
+            .then(response => response.json())
             .then(data => {
-                let resDiv = document.getElementById("resultado");
                 resDiv.innerText = data.message;
                 if (data.status === "success") resDiv.className = "success";
                 else if (data.status === "warning") resDiv.className = "warning";
                 else resDiv.className = "error";
 
-                // Reanudar el escaneo después de 3 segundos
                 setTimeout(() => {
                     resDiv.innerText = "Esperando siguiente QR...";
                     resDiv.className = "";
@@ -54,20 +69,11 @@
                 }, 3000);
             })
             .catch(err => {
-                document.getElementById("resultado").innerText = "❌ Error de conexión";
-                document.getElementById("resultado").className = "error";
+                resDiv.innerText = "❌ Error de conexión con el servidor";
+                resDiv.className = "error";
                 setTimeout(() => html5QrCode.resume(), 3000);
             });
         }
-
-        const html5QrCode = new Html5Qrcodes("reader");
-        html5QrCode.start(
-            { facingMode: "environment" }, // Usa la cámara trasera por defecto
-            { fps: 10, qrbox: 250 },
-            onScanSuccess
-        ).catch(err => {
-            alert("No se pudo iniciar la cámara. Asegúrate de dar permisos o usar HTTPS.");
-        });
     </script>
 </body>
 </html>

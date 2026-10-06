@@ -43,36 +43,56 @@
             });
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
+        // Función auxiliar para realizar el fetch con reintentos automáticos
+        async function enviarConReintentos(datosQR, intentosMaximos = 3) {
+            for (let intento = 1; intento <= intentosMaximos; intento++) {
+                try {
+                    let response = await fetch(URL_BACKEND, {
+                        method: "POST",
+                        body: JSON.stringify(datosQR),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" }
+                    });
+                    
+                    let data = await response.json();
+
+                    // Si el servidor responde con éxito, advertencia (ej. ya ingresó) o error de negocio conocido, lo devolvemos
+                    if (data.status === "success" || data.status === "warning" || intento === intentosMaximos) {
+                        return data;
+                    }
+
+                    // Si hubo un fallo de saturación, esperamos 1 segundo antes de reintentar
+                    console.warn(`Intento ${intento} fallido. Reintentando...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                } catch (err) {
+                    if (intento === intentosMaximos) {
+                        return { status: "error", message: "❌ Error de conexión con el servidor" };
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
             html5QrCode.pause();
             
             let resDiv = document.getElementById("resultado");
             resDiv.className = "";
             resDiv.innerText = "Procesando...";
 
-            fetch(URL_BACKEND, {
-                method: "POST",
-                body: JSON.stringify({ email: decodedText }),
-                headers: { "Content-Type": "text/plain;charset=utf-8" }
-            })
-            .then(response => response.json())
-            .then(data => {
-                resDiv.innerText = data.message;
-                if (data.status === "success") resDiv.className = "success";
-                else if (data.status === "warning") resDiv.className = "warning";
-                else resDiv.className = "error";
+            // Llamamos a nuestra función de reintentos
+            let data = await enviarConReintentos({ email: decodedText });
 
-                setTimeout(() => {
-                    resDiv.innerText = "Esperando siguiente QR...";
-                    resDiv.className = "";
-                    html5QrCode.resume();
-                }, 3000);
-            })
-            .catch(err => {
-                resDiv.innerText = "❌ Error de conexión con el servidor";
-                resDiv.className = "error";
-                setTimeout(() => html5QrCode.resume(), 3000);
-            });
+            resDiv.innerText = data.message;
+            if (data.status === "success") resDiv.className = "success";
+            else if (data.status === "warning") resDiv.className = "warning";
+            else resDiv.className = "error";
+
+            setTimeout(() => {
+                resDiv.innerText = "Esperando siguiente QR...";
+                resDiv.className = "";
+                html5QrCode.resume();
+            }, 3000);
         }
     </script>
 </body>
